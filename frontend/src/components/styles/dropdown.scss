@@ -1,0 +1,53 @@
+@import "../../_variables.scss";
+@import "../../_mixins.scss";
+
+.dropdown {
+    position: relative;
+    display: inline-block;
+    width: auto;
+
+    button {
+        margin-right: 5px;
+        @include button-styles;
+    }
+
+    .dropdown-content {
+        position: absolute;
+        display: flex;
+        flex-direction: column;
+        padding: 5px;
+        min-width: 200px;
+        background-color: $nav-color;
+        box-shadow: 0px 8px 16px 0px $shadow-color;
+        z-index: 1;
+
+        li {
+            display: flex;
+            width: 100%;
+
+            button {
+                @include button-styles;
+                display: flex;
+                flex-direction: row;
+                justify-content: space-between;
+                width: 100%;
+                font-weight: 500;
+                font-family: inherit;
+                font-size: 0.9em;
+
+                &:hover {
+                    background-color: $nav-highlight;
+                    border: 0;
+                }
+            }
+
+            .dropdown button {
+                @include dropdown-button-styles;
+            }
+        }
+    }
+
+    .separator {
+        min-width: 100%;
+    }
+}

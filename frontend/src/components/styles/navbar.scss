@@ -1,0 +1,21 @@
+@import "../../_variables.scss";
+@import "../../_mixins.scss";
+
+.nav {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    justify-content: flex-start;
+    align-items: center;
+    align-content: flex-start;
+    padding: 10px;
+    max-height: 2vh;
+    min-height: 2vh;
+    background-color: $nav-color;
+    border-bottom: 1px solid $separator-color;
+}
+
+.nav > .dropdown > button {
+    @include button-styles;
+    margin-right: 5px;
+}

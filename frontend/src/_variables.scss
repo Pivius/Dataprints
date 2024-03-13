@@ -1,0 +1,6 @@
+$primary-color: #303037;
+$separator-color: lighten($primary-color, 20%);
+$nav-color: darken($primary-color, 10%);
+$nav-highlight: lighten($primary-color, 5%);
+
+$shadow-color: transparentize(black, 0.8);
