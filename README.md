@@ -1,13 +1,13 @@
 # DataPrints
 
-DataPrints is a tool designed to build statistics and visualize them using "blueprints." It employs a 2D node system through a React-based frontend, enabling users to structure and visualize data in the browser. Rust serves as the backend to handle computing.
+DataPrints is a tool designed to build statistics and visualize them using "blueprints." It employs a 2D node system through a React-based frontend, enabling users to structure and visualize data in the browser. Rust serves to handle computing through web assemby bindings.
 
 ## Project Structure
 
 The project is organized into two main folders:
 
 - **frontend:** React-based frontend code for creating and visualizing data blueprints.
-- **backend:** Rust backend responsible for handling computing and serving API endpoints.
+- **rust-wasm:** Rust wasm bindings.
 
 ## Getting Started
 
@@ -36,11 +36,11 @@ To clone and set up the project, follow these steps:
 Make sure you have the following installed on your machine:
 
 - [Node.js](https://nodejs.org/): Required for frontend.
-- [Rust](https://www.rust-lang.org/): Needed for backend.
+- [Rust](https://www.rust-lang.org/): Needed for wasm bindings.
 
 ## Usage
 
-The project is designed to help you structure and visualize data using blueprints. The frontend provides an interactive 2D node system, and the backend handles data processing.
+The project is designed to help you structure and visualize data using blueprints.
 
 ## Future Features
 

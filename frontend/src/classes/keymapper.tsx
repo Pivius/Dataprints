@@ -22,7 +22,7 @@ export class KeyMapper {
             this.callback();
         }
     }
-    
+
     private isHotkeyDown(event: KeyboardEvent): boolean {
         return (
             event.key === this.hotkeyMapping.key &&
@@ -30,7 +30,7 @@ export class KeyMapper {
             event.shiftKey === !!this.hotkeyMapping.shiftKey
         );
     }
-    
+
     private getHotkeyString(): string {
         return `${this.hotkeyMapping.ctrlKey ? 'Ctrl + ' : ''}${this.hotkeyMapping.shiftKey ? 'Shift + ' : ''}${this.hotkeyMapping.key.toUpperCase()}`;
     }
