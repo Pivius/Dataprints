@@ -1,4 +1,5 @@
 use wasm_bindgen::prelude::*;
+mod helper;
 mod nodes;
 
 #[wasm_bindgen]

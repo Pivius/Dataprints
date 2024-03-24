@@ -2,43 +2,80 @@ mod test;
 pub mod edge;
 pub mod value;
 pub mod connector;
+use crate::helper::types::Null;
 use self::connector::Connector;
-use self::value::ConnectorValue;
 use self::value::ConnectorType;
 use self::edge::ConnectorEdge;
 
+/// Contains vector of all the connectors.\
+/// Used to create, delete, connect and disconnect connectors.\
+/// 
+/// Input connector is a connector that can have only one connection and has no value.\
+/// Output connector is a connector that can have multiple connections and can have value.\
+/// 
+/// 
+/// 
+/// # Example
+/// ```
+/// use crate::nodes::connector_manager::Manager;
+/// use crate::nodes::connector_manager::value::{ConnectorType, ConnectorTypeId};
+/// 
+/// let mut manager = Manager::new();
+/// 
+/// // Create connectors
+/// let input = manager.add_connector("connector1".to_string(), 0, ConnectorTypeId::INT, false);
+/// let output = manager.add_connector("connector2".to_string(), 5, ConnectorTypeId::INT, true);
+/// 
+/// // Connect them
+/// manager.connect(input, output);
+/// 
+/// // Input now has value of output
+/// let value = manager.get_value(input);
+/// 
+/// manager.set_value(output, value);
 pub struct Manager {
     connectors: Vec<Connector>,
-    edges: Vec<ConnectorEdge>,
 }
 
 impl Manager {
     pub fn new() -> Manager {
         Manager {
             connectors: Vec::new(),
-            edges: Vec::new(),
         }
     }
 
-    pub fn set_connector_value<T: ConnectorValue>(&mut self, index: usize, value: T) {
+    pub fn set_value<T>(&mut self, index: usize, value: T) 
+    where
+        T: Into<ConnectorType>
+    {
         let connector = self.get_connector(index);
 
         if connector.is_none() {
             return;
         }
 
-        let connector = connector.unwrap();
-
-        if connector.get_value_type() != value.get_connector_type() {
-            let edge = self.get_connector_edge(index);
-
-            if let Some(edge) = edge {
-                let edge_index = edge.get_index();
-                self.delete_edge(edge_index)
-            }
-        }
+        let value: ConnectorType = value.into();
 
         self.connectors[index].set_value(value);
+    }
+
+    pub fn get_value(&self, index: usize) -> ConnectorType {
+        let connector = self.get_connector(index);
+
+        match connector {
+            Some(connector) => {
+                match connector {
+                    Connector::Input(_, connected, connector_type) => {
+                        match connected {
+                            Some(connected) => self.get_connector(*connected).unwrap().get_value().get_variant(connector_type.clone()),
+                            None => ConnectorType::new(0),
+                        }
+                    },
+                    Connector::Output(_, _, value, _) => value.clone(),
+                }
+            },
+            None => ConnectorType::Null(Null::new()),
+        }
     }
 
     pub fn get_connector(&self, index: usize) -> Option<&Connector> {
@@ -49,58 +86,50 @@ impl Manager {
         self.connectors.get_mut(index)
     }
 
-    pub fn get_two_connectors_mut(&mut self, index1: usize, index2: usize) -> (&mut Connector, &mut Connector) {
+    pub fn get_two_connectors(&self, index1: usize, index2: usize) -> (&Connector, &Connector) {
+        let (index1, index2) = if index1 < index2 {
+            (index1, index2)
+        } else {
+            (index2, index1)
+        };
+
+        let (left, right) = self.connectors.split_at(index1 + 1);
+        (&left[index1], &right[index2 - index1 - 1])
+    }
+
+    pub fn get_input_output_mut(&mut self, index1: usize, index2: usize) -> (&mut Connector, &mut Connector) {
+        let (index1, index2) = if index1 < index2 {
+            (index1, index2)
+        } else {
+            (index2, index1)
+        };
+
         let (left, right) = self.connectors.split_at_mut(index1 + 1);
-        (&mut left[index1], &mut right[index2 - index1 - 1])
+        let (input, output) = (&mut left[index1], &mut right[index2 - index1 - 1]);
+
+        let (input, output) = if input.is_output() {
+            (output, input)
+        } else {
+            (input, output)
+        };
+        
+        (input, output)
     }
 
-    pub fn get_edge(&self, index: usize) -> Option<&ConnectorEdge> {
-        self.edges.get(index)
-    }
-
-    pub fn get_edge_mut(&mut self, index: usize) -> Option<&mut ConnectorEdge> {
-        self.edges.get_mut(index)
-    }
-
-    pub fn get_connector_edge(&self, index: usize) -> Option<&ConnectorEdge> {
-        for edge in &self.edges {
-            let is_edge = edge.has_connection(index);
-            
-            if is_edge {
-                return Some(edge);
-            }
-        }
-
-        None
-    }
-
-    pub fn get_connector_edge_mut(&mut self, index: usize) -> Option<&mut ConnectorEdge> {
-        for edge in &mut self.edges {
-            let is_edge = edge.has_connection(index);
-
-            if is_edge {
-                return Some(edge);
-            }
-        }
-
-        None
-    }
-
-    pub fn add_connector<T: ConnectorValue>(&mut self, name: String, value: T, is_output: bool) -> usize {
+    pub fn add_connector<T>(&mut self, name: String, value: T, connector_type: i32, is_output: bool) -> usize 
+    where
+        T: Into<ConnectorType>
+    {
         let index = self.connectors.len();
-        self.connectors.push(Connector::new(index, name, value, is_output));
+
+        self.connectors.push(Connector::new(index, name, value, connector_type, is_output));
+
         index
     }
 
     pub fn delete_connector(&mut self, index: usize) {
         // delete edge
-        let edge = self.get_connector_edge(index);
-
-        if let Some(edge) = edge {
-            let edge_index = edge.get_index();
-            self.delete_edge(edge_index);
-        }
-
+        self.disconnect(index);
         self.connectors.remove(index);
 
         for connector in &mut self.connectors {
@@ -110,97 +139,86 @@ impl Manager {
         }
     }
 
-    pub fn add_edge(&mut self, input: Option<usize>, output: Option<usize>) -> usize {
-        let index = self.edges.len();
+    pub fn connect(&mut self, input_index: usize, output_index: usize) {
+        let (input, output) = self.get_two_connectors(input_index, output_index);
+        let (mut input_index, mut output_index) = (input.get_index(), output.get_index());
 
-        self.edges.push(ConnectorEdge::new(index));
-        self.edges[index].connect(input, output);
+        match (input.is_output(), output.is_output()) {
+            (true, false) => {
+                std::mem::swap(&mut input_index, &mut output_index);
+            },
+            (false, true) => (),
+            _ => return,
+        }
         
-        if input.is_some() {
-            self.get_connector_mut(input.unwrap()).unwrap().set_edge(index);
-        }
+        let (input, output) = self.get_input_output_mut(input_index, output_index);
 
-        if output.is_some() {
-            self.get_connector_mut(output.unwrap()).unwrap().set_edge(index);
-        }
+        match (input.has_edge(), output.has_edge()) {
+            (false, true) => {
+                let edge = output.get_edge_mut().unwrap();
 
-        index
-    }
+                if !edge.get_input().contains(&input_index) {
+                    edge.add_input(input_index);
+                    input.connect_input(output);
+                }
+            }
+            (false, false) => {
+                let edge = ConnectorEdge::new(vec![input_index], output_index);
+                output.connect_output(edge);
+                input.connect_input(output);
+            }
+            (true, _) => {
+                let input_connector = *input.get_connected().first().unwrap();
 
-    pub fn delete_edge(&mut self, index: usize) {
-        let edge = self.get_edge(index).unwrap();
-        let input = edge.get_input();
-        let output = edge.get_output();
+                if input_connector != output_index {
+                    self.disconnect(input_index);
 
-        if input.is_some() {
-            self.get_connector_mut(input.unwrap()).unwrap().remove_edge();
-        }
+                    let (input, output) = self.get_input_output_mut(input_index, output_index);
 
-        if output.is_some() {
-            self.get_connector_mut(output.unwrap()).unwrap().remove_edge();
-        }
-
-        self.edges.remove(index);
-
-        for edge in &mut self.edges {
-            if edge.get_index() > index {
-                edge.set_index(index - 1);
+                    if output.has_edge() {
+                        let edge = output.get_edge_mut().unwrap();
+                        edge.add_input(input.get_index());
+                        input.connect_input(output);
+                    } else {
+                        let edge = ConnectorEdge::new(vec![input_index], output_index);
+                        output.connect_output(edge);
+                        input.connect_input(output);
+                    }
+                }
             }
         }
     }
 
-    pub fn connect(&mut self, from: usize, to: usize) {
-        let from_connector = self.get_connector(from);
-        let to_connector = self.get_connector(to);
-        
-        if from_connector.is_none() || to_connector.is_none() {
-            return;
-        }
-        
-        let from_connector = from_connector.unwrap();
-        let to_connector = to_connector.unwrap();
+    pub fn disconnect(&mut self, index: usize) {
+        let connector = self.get_connector(index).unwrap();
 
-        if from_connector.get_is_output() == to_connector.get_is_output() {
-            return;
-        }
-
-        let (input, output) = if from_connector.get_is_output() {
-            (to_connector, from_connector)
-        } else {
-            (from_connector, to_connector)
-        };
-
-        let from_edge = self.get_connector_edge(from).map(|edge| edge.get_index());
-        let to_edge = self.get_connector_edge(to).map(|edge| edge.get_index());
-        let input = Some(input.get_index());
-        let output = Some(output.get_index());
-
-        match (from_edge, to_edge) {
-            (Some(from), Some(to)) => {
-                if from != to {
-                    self.delete_edge(from);
-                    self.get_edge_mut(to).unwrap().connect(input, output);
+        if connector.has_edge() {
+            match connector.is_output() {
+                true => {
+                    for input in self.connectors.iter_mut().filter(|connector| (connector.is_input() || connector.get_index() == index)){
+                        if input.get_index() != index {
+                            input.remove_edge();
+                        } else {
+                            input.remove_edge();
+                        }
+                    }
+                },
+                false => {
+                    let edge = connector.get_connected().first().unwrap().clone();
+                    let edge = self.get_connector(edge).unwrap().get_edge().unwrap();
+    
+                    // If we are input, so check if only 1 connection, if so disconnect edge on both ends
+                    if edge.get_input().len() == 1 {
+                        let output_index = edge.get_output();
+    
+                        for connector in self.connectors.iter_mut().filter(|connector| connector.get_index() == output_index || connector.get_index() == index) {
+                            connector.remove_edge();
+                        }
+                    } else {
+                        self.connectors.get_mut(index).unwrap().remove_edge();
+                    }
                 }
-            },
-            (Some(from), None) => {
-                self.get_edge_mut(from).unwrap().connect(input, output);
-            },
-            (None, Some(to)) => {
-                self.get_edge_mut(to).unwrap().connect(input, output);
-            },
-            (None, None) => {
-                self.add_edge(input, output);
-            },
-        }
-    }
-
-    pub fn disconnect(&mut self, connector: usize) {
-        let edge = self.get_connector_edge(connector);
-
-        if let Some(edge) = edge {
-            let edge_index = edge.get_index();
-            self.delete_edge(edge_index);
+            }
         }
     }
 }
-
