@@ -1,4 +1,4 @@
-use std::{fmt, ops::{Add, Sub, Mul, Div, Rem}, cmp::Ordering};
+use std::{fmt, ops::{Add, Sub, Mul, Div, Rem, AddAssign, SubAssign, DivAssign, MulAssign, RemAssign}, cmp::Ordering};
 use crate::helper::types::Null;
 
 // Macro
@@ -34,6 +34,78 @@ macro_rules! impl_arithmetic {
                 match self {
                     ConnectorType::Float(value) => ConnectorType::Float(value $operator other),
                     _ => panic!("Unsupported operation: {} for {:?}", stringify!($method), self),
+                }
+            }
+        }
+
+        impl $trait<ConnectorType> for i32 {
+            type Output = ConnectorType;
+
+            fn $method(self, other: ConnectorType) -> Self::Output {
+                match other {
+                    ConnectorType::Integer(value) => ConnectorType::Integer(self $operator value),
+                    _ => panic!("Unsupported operation: {} for {:?}", stringify!($method), other),
+                }
+            }
+        }
+
+        impl $trait<ConnectorType> for f32 {
+            type Output = ConnectorType;
+
+            fn $method(self, other: ConnectorType) -> Self::Output {
+                match other {
+                    ConnectorType::Float(value) => ConnectorType::Float(self $operator value),
+                    _ => panic!("Unsupported operation: {} for {:?}", stringify!($method), other),
+                }
+            }
+        }
+    };
+}
+
+macro_rules! impl_assign {
+    ($trait:ident, $method:ident, $operator:tt) => {
+        impl $trait<ConnectorType> for ConnectorType {
+            fn $method(&mut self, other: Self) {
+                match (self.clone(), other) {
+                    (ConnectorType::Integer(mut lhs), ConnectorType::Integer(rhs)) => lhs $operator rhs,
+                    (ConnectorType::Float(mut lhs), ConnectorType::Float(rhs)) => lhs $operator rhs,
+                    _ => panic!("Unsupported operation: {} for {:?}", stringify!($method), self),
+                }
+            }
+        }
+
+        impl $trait<i32> for ConnectorType {
+            fn $method(&mut self, other: i32) {
+                match self {
+                    ConnectorType::Integer(value) => *value $operator other,
+                    _ => panic!("Unsupported operation: {} for {:?}", stringify!($method), self),
+                }
+            }
+        }
+
+        impl $trait<f32> for ConnectorType {
+            fn $method(&mut self, other: f32) {
+                match self {
+                    ConnectorType::Float(value) => *value $operator other,
+                    _ => panic!("Unsupported operation: {} for {:?}", stringify!($method), self),
+                }
+            }
+        }
+
+        impl $trait<ConnectorType> for i32 {
+            fn $method(&mut self, other: ConnectorType) {
+                match other {
+                    ConnectorType::Integer(value) => *self $operator value,
+                    _ => panic!("Unsupported operation: {} for {:?}", stringify!($method), other),
+                }
+            }
+        }
+
+        impl $trait<ConnectorType> for f32 {
+            fn $method(&mut self, other: ConnectorType) {
+                match other {
+                    ConnectorType::Float(value) => *self $operator value,
+                    _ => panic!("Unsupported operation: {} for {:?}", stringify!($method), other),
                 }
             }
         }
@@ -268,6 +340,12 @@ macro_rules! exp_conversion {
 ///         - `$method`: The method name.
 ///         - `$operator`: The operator to use.
 ///     - Usage: `impl_arithmetic!(Add, add, +);`
+/// - `impl_assign!`: Implements assignment operations for `ConnectorType` such as `+=, -=, *=, /=, %=`
+///     - Parameters:
+///         - `$trait`: The trait to implement.
+///         - `$method`: The method name.
+///         - `$operator`: The operator to use.
+///     - Usage: `impl_assign!(AddAssign, add_assign, +=);`
 /// - `impl_partial_eq!`: Implements equality operations for `ConnectorType` such as `==, !=`
 ///     - Parameters:
 ///         - `$variant`: The variant to implement equality for.
@@ -398,6 +476,12 @@ impl_to_connectortype!(String, ConnectorType::String);
 impl_to_connectortype!(&str, |value: &str| ConnectorType::String(value.to_string()));
 impl_to_connectortype!(bool, ConnectorType::Boolean);
 
+impl_assign!(AddAssign, add_assign, +=);
+impl_assign!(SubAssign, sub_assign, -=);
+impl_assign!(MulAssign, mul_assign, *=);
+impl_assign!(DivAssign, div_assign, /=);
+impl_assign!(RemAssign, rem_assign, %=);
+
 impl_partial_eq!(Integer, i32);
 impl_partial_eq!(Float, f32);
 impl_partial_eq!(String, String);
@@ -521,6 +605,96 @@ mod value_test {
         assert_eq!(float_mul, 50.0);
         assert_eq!(float_div, 0.5);
         assert_eq!(float_rem, 5.0);
+    }
+
+    #[test]
+    fn test_arithmetic_primitives() {
+        let int1 = ConnectorType::new(5);
+        let float1 = ConnectorType::new(5.0);
+
+        let int_add_primitive_right = int1.clone() + 10;
+        let int_sub_primitive_right = int1.clone() - 10;
+        let int_mul_primitive_right = int1.clone() * 10;
+        let int_div_primitive_right = int1.clone() / 10;
+        let int_rem_primitive_right = int1.clone() % 10;
+
+        let float_add_primitive_right = float1.clone() + 10.0;
+        let float_sub_primitive_right = float1.clone() - 10.0;
+        let float_mul_primitive_right = float1.clone() * 10.0;
+        let float_div_primitive_right = float1.clone() / 10.0;
+        let float_rem_primitive_right = float1.clone() % 10.0;
+
+        let int_add_primitive_left = 10 + int1.clone();
+        let int_sub_primitive_left = 10 - int1.clone();
+        let int_mul_primitive_left = 10 * int1.clone();
+        let int_div_primitive_left = 10 / int1.clone();
+        let int_rem_primitive_left = 10 % int1.clone();
+
+        let float_add_primitive_left = 10.0 + float1.clone();
+        let float_sub_primitive_left = 10.0 - float1.clone();
+        let float_mul_primitive_left = 10.0 * float1.clone();
+        let float_div_primitive_left = 10.0 / float1.clone();
+        let float_rem_primitive_left = 10.0 % float1.clone();
+
+        assert_eq!(int_add_primitive_right, 15);
+        assert_eq!(int_sub_primitive_right, -5);
+        assert_eq!(int_mul_primitive_right, 50);
+        assert_eq!(int_div_primitive_right, 0);
+        assert_eq!(int_rem_primitive_right, 5);
+
+        assert_eq!(float_add_primitive_right, 15.0);
+        assert_eq!(float_sub_primitive_right, -5.0);
+        assert_eq!(float_mul_primitive_right, 50.0);
+        assert_eq!(float_div_primitive_right, 0.5);
+        assert_eq!(float_rem_primitive_right, 5.0);
+
+        assert_eq!(int_add_primitive_left, 15);
+        assert_eq!(int_sub_primitive_left, 5);
+        assert_eq!(int_mul_primitive_left, 50);
+        assert_eq!(int_div_primitive_left, 2);
+        assert_eq!(int_rem_primitive_left, 0);
+
+        assert_eq!(float_add_primitive_left, 15.0);
+        assert_eq!(float_sub_primitive_left, 5.0);
+        assert_eq!(float_mul_primitive_left, 50.0);
+        assert_eq!(float_div_primitive_left, 2.0);
+        assert_eq!(float_rem_primitive_left, 0.0);
+    }
+
+    #[test]
+    fn test_assign() {
+        let mut int1 = ConnectorType::new(5);
+        let mut float1 = ConnectorType::new(5.0);
+
+        int1 += 5;
+        float1 += 5.0;
+
+        assert_eq!(int1, 10);
+        assert_eq!(float1, 10.0);
+
+        int1 -= 5;
+        float1 -= 5.0;
+
+        assert_eq!(int1, 5);
+        assert_eq!(float1, 5.0);
+
+        int1 *= 5;
+        float1 *= 5.0;
+
+        assert_eq!(int1, 25);
+        assert_eq!(float1, 25.0);
+
+        int1 /= 5;
+        float1 /= 5.0;
+
+        assert_eq!(int1, 5);
+        assert_eq!(float1, 5.0);
+
+        int1 %= 5;
+        float1 %= 5.0;
+
+        assert_eq!(int1, 0);
+        assert_eq!(float1, 0.0);
     }
 
     #[test]
